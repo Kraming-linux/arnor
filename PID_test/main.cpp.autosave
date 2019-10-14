@@ -1,0 +1,64 @@
+#include "kalman.h"
+#include "pid.h"
+
+using namespace std;
+
+Point2f g_predict_pt;
+
+Mat measurement;
+Mat control;
+
+double g_runtime;
+
+Point2f g_current_point;
+
+void on_MouseHandle(int event, int x, int y, int flags, void* param);  // 鼠标事件
+
+
+
+int main()
+{
+    Mat src_img(960, 1024, CV_8UC3, Scalar(255,255,255));  // 全白
+    RM_kalmanfilter kalman;
+    PIDcontrolor pid;
+    Point2f kalman_point, pid_point;
+
+    while(1)
+    {
+        setMouseCallback("test", on_MouseHandle);  // 设置鼠标回调
+
+        g_runtime = ((double)getTickCount() - g_runtime) / getTickFrequency();
+
+        kalman_point = kalman.point_Predict(g_runtime,g_current_point);
+        pid_point = pid.pid_Control_predictor(kalman_point, g_current_point);
+        src_img.setTo(Scalar(255,255,255,0));
+        circle(src_img,g_current_point,5,Scalar(0,0,255),3);
+        circle(src_img,kalman_point,5,Scalar(255,0,0),3);  // kalman 点
+        circle(src_img, pid_point, 5, Scalar(0, 255, 0), 3);  // 修正点
+        cout << "latest: [" << g_current_point.x << "," << g_current_point.y << "]" << endl;
+        cout << "predict: [" << kalman_point.x << "," << kalman_point.y << "]" << endl;
+        cout << "pid: [" << pid_point.x << "," << pid_point.y << "]" << endl;
+        cout << endl;
+
+        imshow("test", src_img);
+        char key = waitKey(3);
+        if (key == 27)
+        {             //esc
+            break;
+        }
+    }
+    return 0;
+}
+
+
+void on_MouseHandle(int event, int x, int y, int flags, void* param)  // 别问，形式就是这样
+{
+    //鼠标移动消息
+    if (event == EVENT_MOUSEMOVE)
+    {
+        g_current_point.x = x;
+        g_current_point.y = y;
+
+    }
+
+}
