@@ -1,0 +1,128 @@
+Qt5.9 安装与配置
+方法一： 终端输入：（自动安装最新版本，英文版）
+sudo add-apt-repository ppa:levi-armstrong/qt-libraries-xenial
+sudo add-apt-repository ppa:levi-armstrong/ppa
+sudo apt-get update
+sudo apt-get install qt57creator-plugin-ros
+
+方法二：（安装5.9.0中文版）
+下载地址:https://download.qt.io/official_releases/qt/5.9/5.9.0/
+安装： 在安装包位置右键打开终端
+
+      chmod +x qt-opensource-linux-x64-5.9.0.run
+
+      sudo ./qt-opensource-linux-x64-5.9.0.run
+
+
+创建帐号可以直接skip，选择安装组件
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+Qt + opencv
+下载opencv：         https://opencv.org/releases.html
+选择要装的版本，点击Sources,等待下载,配置前先下载cmake
+
+sudo apt-get install build-essential
+
+sudo apt-get install cmake git libgtk2.0-dev pkg-config libavcodec-dev libavformat-dev libswscale-dev
+
+sudo apt-get install python-dev python-numpy libtbb2 libtbb-dev libjpeg-dev libpng-dev libtiff-dev libjasper-dev libdc1394-22-dev
+
+
+配置（在opencv所在文件夹打开终端）
+mkdir build
+
+cd build
+
+cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/usr/local ..
+
+make -j4
+
+sudo make install
+
+sudo make
+
+sudo make install
+
+sudo gedit /etc/ld.so.conf.d/opencv.conf 
+
+加入       /usr/local/lib
+
+sudo ldconfig
+
+接着配置环境变量： 
+
+sudo gedit /etc/bash.bashrc 
+写入 
+PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/local/lib/pkgconfig 
+export PKG_CONFIG_PATH 
+
+sudo ldconfig
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+配置好后，进行测试：QT project setting
+
+.pro文件：
+
+TEMPLATE = app
+
+CONFIG += console c++11
+
+CONFIG -= app_bundle
+
+CONFIG -= qt
+
+SOURCES += main.cpp
+
+INCLUDEPATH += /usr/local/include \
+                /usr/local/include/opencv
+                /usr/local/include/opencv2
+
+LIBS += /usr/local/lib/libopencv_calib3d.so.3.4\
+        /usr/local/lib/libopencv_core.so.3.4 \
+        /usr/local/lib/libopencv_dnn.so.3.4 \
+        /usr/local/lib/libopencv_features2d.so.3.4 \
+        /usr/local/lib/libopencv_flann.so.3.4 \
+        /usr/local/lib/libopencv_highgui.so.3.4 \
+        /usr/local/lib/libopencv_imgcodecs.so.3.4 \
+        /usr/local/lib/libopencv_imgproc.so.3.4 \
+        /usr/local/lib/libopencv_ml.so.3.4 \
+        /usr/local/lib/libopencv_objdetect.so.3.4 \
+        /usr/local/lib/libopencv_photo.so.3.4 \
+        /usr/local/lib/libopencv_shape.so.3.4 \
+        /usr/local/lib/libopencv_stitching.so.3.4 \
+        /usr/local/lib/libopencv_superres.so.3.4 \
+        /usr/local/lib/libopencv_video.so.3.4 \
+        /usr/local/lib/libopencv_videoio.so.3.4 \
+        /usr/local/lib/libopencv_videostab.so.3.4
+
+/usr/local/lib/libopencv_imgcodecs.so.3.4
+
+
+测试能否调用摄像头： whatever VS or QT
+
+#include <iostream>
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+
+using namespace std;
+using namespace cv;
+
+int main()
+{
+    VideoCapture capture (0);
+    Mat src;
+    while(1)
+    {
+
+        capture >> src;
+        imshow("11",src);
+        char(key)=(char)waitKey(1);
+        if(key==27)
+            break;
+    }
+    return 0;
+}
