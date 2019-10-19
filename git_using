@@ -1,0 +1,16 @@
+在环境已经配置好的情况下
+git checkout master
+git add --all
+git commit -m '注释'
+git push origin master
+git pull
+１报错
+sign_and_send_pubkey: signing failed: agent refused operation
+Permission denied (publickey).
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+解决：
+eval "$(ssh-agent -s)"
+ssh-add
