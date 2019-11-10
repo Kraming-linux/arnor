@@ -19,9 +19,111 @@ using namespace cv;
 //#define VIDEO
 //#define TEMPLATE_MATCH
 //#define SHOW_RECT
-
+#define CONTOUR_DIGIT
 
 Point get_rect_center(Rect rect); /*rect类取中点的函数*/
+bool TRUE_DIGIT(Mat ROI);  /*判断是否为数码管*/
+char myDiscern(Mat n)   /*检测数码管的数字*/
+{
+    if(2*n.cols < n.rows)
+    {
+        return '1';
+    }
+    int x_half = n.cols/2;
+    int y_one_third = n.rows/3;
+    int y_two_third = n.rows*2/3;
+    int a = 0,b = 0,c = 0,d = 0,e = 0,f = 0,g = 0;
+
+    for(int i = 0;i < n.rows;i++)
+    {
+        uchar *data=n.ptr<uchar>(i);
+        if(i < y_one_third)
+        {
+            if(data[x_half] == 255) a = 1;
+        }
+        else if(i > y_one_third && i < y_two_third)
+        {
+            if(data[x_half] == 255) g = 1;
+        }
+        else
+        {
+            if(data[x_half] == 255) d = 1;
+        }
+    }
+    for(int j = 0;j < n.cols;j++)
+    {
+        uchar *data=n.ptr<uchar>(y_one_third);
+        if(j<x_half)
+        {
+            if(data[j] == 255) f = 1;
+        }
+        else
+        {
+            if(data[j]==255) b = 1;
+        }
+    }
+    for(int j = 0;j < n.cols;j++)
+    {
+        uchar *data=n.ptr<uchar>(y_two_third);
+        if(j < x_half)
+        {
+            if(data[j] == 255) e = 1;
+        }
+        else
+        {
+            if(data[j] == 255) c = 1;
+        }
+    }
+
+    if(a==1 && b==1 && c==1 && d==1 && e==1 && f==1 && g==0)
+    {
+        return '0';
+    }
+    else if(a==1 && b==1 && c==0 && d==1 && e==1 && f==0 && g==1)
+    {
+        return '2';
+    }
+    else if(a==1 && b==1 && c==1 && d==1 && e==0 && f==0 && g==1)
+    {
+        return '3';
+    }
+    else if(a==0 && b==1 && c==1 && d==0 && e==0 && f==1 && g==1)
+    {
+        return '4';
+    }
+    else if(a==1 && b==0 && c==1 && d==1 && e==0 && f==1 && g==1)
+    {
+        return '5';
+    }
+    else if(a==1 && b==0 && c==1 && d==1 && e==1 && f==1 && g==1)
+    {
+        return '6';
+    }
+    else if(a==1 && b==1 && c==1 && d==0 && e==0 && f==0 && g==0)
+    {
+        return '7';
+    }
+    else if(a==1 && b==1 && c==1 && d==1 && e==1 && f==1 && g==1)
+    {
+        return '8';
+    }
+    else if(a==1 && b==1 && c==1 && d==1 && e==0 && f==1 && g==1)
+    {
+        return '9';
+    }
+//    else if(a==0 && b==1 && c==1 && d==0 && e==0 && f==0 && g==0)
+//    {
+//        return '1';
+//    }
+    else
+    {
+        printf("[error_%d_%d_%d_%d_%d_%d_%d]\n",a,b,c,d,e,f,g);
+        return 'e';
+    }
+
+    // cout<<"MyDiscern:OK"<<endl;
+}
+
 unsigned char          *g_pRgbBuffer;   // 处理后数据缓存区
 int main()
 {
@@ -32,8 +134,6 @@ int main()
     double *minVal = 0;
     double *maxVal = 0;
 #endif
-
-
 
 
 /*---------------设备描述信息--------------------*/
@@ -78,7 +178,7 @@ int main()
     cout << CameraGetAeState(hCamera, &AEstate);
     cout << CameraSetAeState(hCamera, FALSE);
 
-    CameraSetExposureTime(hCamera, 3000);
+    CameraSetExposureTime(hCamera, 4800);
     /*让SDK进入工作模式，开始接收来自相机发送的图像
     数据。如果当前相机是触发模式，则需要接收到
     触发帧以后才会更新图像*/
@@ -105,7 +205,8 @@ int main()
     Mat gray_img;
     Mat bin_img;
     Mat dst_img;
-    Mat element = cv::getStructuringElement(MORPH_ELLIPSE, Size(3, 4));
+    Mat element = cv::getStructuringElement(MORPH_ELLIPSE, Size(3, 5));
+    Mat element_1 = cv::getStructuringElement(MORPH_RECT, Size(3, 3));
 
 
 #ifdef VIDEO
@@ -134,6 +235,7 @@ int main()
 
     while(1)
     {
+        double t = (double)cv::getTickCount();
 
 #ifdef VIDEO
     capture >> temp_img;
@@ -152,15 +254,18 @@ int main()
     }
 
     resize(temp_img, temp_img, Size(640, 480));  // 此代码各参数仅在640X480分辨率有效
-    dst_img.create(temp_img.dims, temp_img.cols, temp_img.type());  // 模板匹配才用的
+    //dst_img.create(temp_img.dims, temp_img.cols, temp_img.type());  // 模板匹配才用的
+    GaussianBlur(temp_img, temp_img, Size(3, 3), 0);
+
     cvtColor(temp_img, gray_img, COLOR_BGR2GRAY);
-    threshold(gray_img, bin_img, 42, 255, THRESH_BINARY);
+    threshold(gray_img, bin_img, 30, 255, THRESH_BINARY);
+    Canny(bin_img, bin_img, 60, 200);
     morphologyEx(bin_img, bin_img, MORPH_CLOSE, element);
     dilate(bin_img, bin_img, element);
 
-    vector<vector<Point>> contours;
-    vector<Rect> big_num(contours.size());  // 筛选大矩形的容器
-    vector<Rect> digit_num(contours.size());  // 筛选小数码容器
+    vector<vector<Point>> contours;   
+    vector<Rect> big_num;  // 筛选大矩形的容器
+    vector<Rect> digit_num;  // 筛选小数码容器
     vector<Point> rect_center;  // 大矩形的中点容器
     vector<Mat> rect_img;     // 大矩形的Mat容器
 
@@ -168,23 +273,25 @@ int main()
     for(size_t i = 0; i < contours.size(); i++)  // 寻找最外层轮廓
     {
         if(contours.size() <= 1) break;
-        const Rect num_rect = boundingRect(contours[i]);
-        //rectangle(temp_img, num_rect, Scalar(0, 0, 255), 2);
-        bool big_area_condition = num_rect.area() > 5000 && num_rect.area() < 40001;
-        bool digit_area_condition = num_rect.area() > 75 && num_rect.area() <= 730;
-        bool the_slope = num_rect.size().height / num_rect.size().width <= 1.3;
-        bool logic_slope = num_rect.size().height >= num_rect.size().width;
+         Rect num_rect = boundingRect(contours[i]);
+         //cout << "area:" << num_rect.area() << endl;
+        rectangle(temp_img, num_rect, Scalar(0, 0, 255), 2);
+        putText(temp_img, to_string(num_rect.area()), num_rect.tl(), FONT_HERSHEY_PLAIN, 1, Scalar(255, 255, 255));
+        bool big_area_condition = num_rect.area() > 4000 && num_rect.area() < 10000;
+        bool digit_area_condition = num_rect.area() > 136 && num_rect.area() <= 755;
+        bool the_slope = fabs(num_rect.size().width / num_rect.size().height) <= 1.3;
+        bool logic_slope = num_rect.size().width < num_rect.size().height;
 
-        if(logic_slope && the_slope && big_area_condition)  // 利用面积大小和宽高比筛选
-        {
+        if(big_area_condition && the_slope /*&& logic_slope*/)  // 利用面积大小和宽高比筛选
+        {           
            big_num.push_back(num_rect);
         }
-
-        if(logic_slope  && digit_area_condition)
+#ifdef CONTOUR_DIGIT
+        if(the_slope  && digit_area_condition)
         {
            digit_num.push_back(num_rect);
         }
-
+#endif
     }
 
     for(size_t k = 0; k < big_num.size(); k++) /*遍历大数字*/
@@ -193,8 +300,8 @@ int main()
         rect_center.push_back(center);  // 存点
         Mat roi_img = temp_img(big_num[k]); // 把rect截成ROI传入Mat变量
         rect_img.push_back(roi_img);
+        //imshow("rect", rect_img[k]);
         rectangle(temp_img, big_num[k], Scalar(0, 255, 255), 2);
-
 #ifdef SHOW_RECT
         cout << "center" << rect_center[k];
         char rect_name[60];
@@ -204,10 +311,21 @@ int main()
     }
 
 
-    for(size_t l = 0; l < digit_num.size(); l++) /*遍历数码管*/
+#ifdef CONTOUR_DIGIT    
+    for(size_t l = 0; l < digit_num.size(); l++) /*遍历数码管*/        
     {
+        Mat temp_roi = temp_img(digit_num[l]);
+        cvtColor(temp_roi, temp_roi, COLOR_BGR2GRAY);
+        threshold(temp_roi, temp_roi, 50, 255, THRESH_BINARY);
+        dilate(temp_roi, temp_roi, element);
+        erode(temp_roi, temp_roi, element);
+        imshow("fxxk", temp_roi);
+        if(TRUE_DIGIT(temp_roi)){  // 已证明此穿线法可以认出数码管，后期可以好好利用,但识别出来的数效果奇差
         rectangle(temp_img, digit_num[l], Scalar(255, 0, 0), 1);
+        cout << "num:" << myDiscern(temp_roi) << endl;
+        }
     }
+#endif
 
 
 #ifdef TEMPLATE_MATCH
@@ -224,14 +342,17 @@ int main()
 #endif
 
 
-//        imshow("temp_img", temp_img);
-        imshow("bin_img", bin_img);
+        imshow("temp_img", temp_img);
+//        imshow("bin_img", bin_img);
         CameraReleaseImageBuffer(hCamera, pbyBuffer);  // 这句别忘记了
+        t = ((double)cv::getTickCount() - t) / cv::getTickFrequency();
+        int fps = int(1.0 / t);
+        //cout << "FPS: " << fps<<endl;
         char c = waitKey(1);
         if( c == 27 )
            break;
     }
-/*--------注意，先反初始化再释放------------------*/
+/*--------------注意，先反初始化再释放------------------*/
     CameraUnInit(hCamera);
     free(g_pRgbBuffer);
     return 0;
@@ -244,4 +365,108 @@ Point get_rect_center(Rect rect)  // 因为rect这个类是没有取中点的，
     center.x = rect.x + rect.size().width / 2;
     center.y = rect.y + rect.size().height / 2;
     return center;
+}
+
+
+bool TRUE_DIGIT(Mat ROI)
+{
+    bool is_digit = false;
+
+    int half_x = ROI.cols / 2;
+    int one_thrid_y = ROI.rows / 3;
+    int two_third_y = ROI.rows * 2/3;
+
+    int a=0,b=0,c=0,d=0,e=0,f=0,g=0; // 数码管对应的管道，a开始顺时针,我也不想这样命名的
+
+    for(int i=0;i<ROI.rows;i++) /*确定横着的数码管是否亮灯*/
+       {
+           uchar *data = ROI.ptr<uchar>(i);
+           if(i<one_thrid_y)
+           {
+               if(data[half_x]==255) a=1;
+           }
+           else if(i>one_thrid_y&&i<two_third_y)
+           {
+               if(data[half_x]==255) g=1;
+           }
+           else
+           {
+               if(data[half_x]==255) d=1;
+           }
+       }
+
+    for(int j=0;j<ROI.cols;j++) /*上半部分的数码管*/
+       {
+           uchar *data=ROI.ptr<uchar>(one_thrid_y);
+           if(j<half_x)
+           {
+               if(data[j]==255) f=1;
+           }
+           else
+           {
+               if(data[j]==255) b=1;
+           }
+       }
+
+    for(int j=0;j<ROI.cols;j++) /*下半部分的数码管*/
+       {
+           uchar *data=ROI.ptr<uchar>(two_third_y);
+           if(j<half_x)
+           {
+               if(data[j]==255) e=1;
+           }
+           else
+           {
+               if(data[j]==255) c=1;
+           }
+       }
+
+      if(ROI.cols < 2 * ROI.rows)
+      {
+        is_digit = true;
+      }
+
+      if(a==1 && b==1 && c==1 && d==1 && e==1 && f==1 && g==0)
+      {
+        is_digit = true; // 0
+      }
+
+      else if(a==1 && b==1 && c==0 && d==1 && e==1 && f==0 && g==1)
+      {
+          is_digit = true; // 2
+      }
+      else if(a==1 && b==1 && c==1 && d==1 && e==0 && f==0 && g==1)
+      {
+          is_digit = true; // 3
+      }
+      else if(a==0 && b==1 && c==1 && d==0 && e==0 && f==1 && g==1)
+      {
+          is_digit = true; // 4
+      }
+      else if(a==1 && b==0 && c==1 && d==1 && e==0 && f==1 && g==1)
+      {
+          is_digit = true; // 5
+      }
+      else if(a==1 && b==0 && c==1 && d==1 && e==1 && f==1 && g==1)
+      {
+          is_digit = true; // 6
+      }
+      else if(a==1 && b==1 && c==1 && d==0 && e==0 && f==0 && g==0)
+      {
+          is_digit = true; // 7
+      }
+      else if(a==1 && b==1 && c==1 && d==1 && e==1 && f==1 && g==1)
+      {
+          is_digit = true; // 8
+      }
+      else if(a==1 && b==1 && c==1 && d==1 && e==0 && f==1 && g==1)
+      {
+          is_digit = true; // 9
+      }
+      else
+      {
+         is_digit = false; // none
+      }
+
+      return is_digit;
 }
