@@ -19,20 +19,30 @@ using namespace cv;
 //#define VIDEO
 //#define TEMPLATE_MATCH
 //#define SHOW_RECT
+//#define DEBUG_CONTOURS
 #define CONTOUR_DIGIT
 
 Point get_rect_center(Rect rect); /*rect类取中点的函数*/
-bool TRUE_DIGIT(Mat ROI);  /*判断是否为数码管*/
+bool TRUE_DIGIT(Mat ROI);  /*判断是否为数码管,暂未使用*/
 char myDiscern(Mat n)   /*检测数码管的数字*/
 {
-    if(2*n.cols < n.rows)
+    bool one_area = (n.rows * n.cols) < 190;
+    if(one_area)  // 重点改进，要先判断1的情况，不然容易跟8搞错
     {
         return '1';
     }
-    int x_half = n.cols/2;
-    int y_one_third = n.rows/3;
-    int y_two_third = n.rows*2/3;
-    int a = 0,b = 0,c = 0,d = 0,e = 0,f = 0,g = 0;
+
+    int x_half = n.cols / 2;       // 穿线法的竖线
+    int y_one_third = n.rows / 3;  // 穿线法的第一条横线
+    int y_two_third = n.rows*2/3;  // 穿线法的第二条横线
+    int a = 0,b = 0,c = 0,d = 0,e = 0,f = 0,g = 0;  // 各数码管的标号，从a开始顺时针,看下面
+
+    /*   a
+      f     b
+         g
+      e     c
+         d
+     */
 
     for(int i = 0;i < n.rows;i++)
     {
@@ -53,7 +63,7 @@ char myDiscern(Mat n)   /*检测数码管的数字*/
     for(int j = 0;j < n.cols;j++)
     {
         uchar *data=n.ptr<uchar>(y_one_third);
-        if(j<x_half)
+        if(j < x_half)
         {
             if(data[j] == 255) f = 1;
         }
@@ -75,11 +85,11 @@ char myDiscern(Mat n)   /*检测数码管的数字*/
         }
     }
 
-    if(a==1 && b==1 && c==1 && d==1 && e==1 && f==1 && g==0)
-    {
-        return '0';
-    }
-    else if(a==1 && b==1 && c==0 && d==1 && e==1 && f==0 && g==1)
+//    if(a==1 && b==1 && c==1 && d==1 && e==1 && f==1 && g==0)
+//    {
+//        return '0';   // 本数码管没有0的情况，故舍去
+//    }
+    if(a==1 && b==1 && c==0 && d==1 && e==1 && f==0 && g==1)
     {
         return '2';
     }
@@ -99,9 +109,10 @@ char myDiscern(Mat n)   /*检测数码管的数字*/
     {
         return '6';
     }
-    else if(a==1 && b==1 && c==1 && d==0 && e==0 && f==0 && g==0)
+    else if((a==1 && b==1 && c==1 && d==1 && e==0 && f==0 && g==0)
+            || (a==1 && b==1 && c==1 && d==0 && e==0 && f==0 && g==0))
     {
-        return '7';
+        return '7';  // 因为数码管太小，有时难免误判
     }
     else if(a==1 && b==1 && c==1 && d==1 && e==1 && f==1 && g==1)
     {
@@ -113,18 +124,19 @@ char myDiscern(Mat n)   /*检测数码管的数字*/
     }
 //    else if(a==0 && b==1 && c==1 && d==0 && e==0 && f==0 && g==0)
 //    {
-//        return '1';
+//        return '1';  // 这个不算1，舍去
 //    }
     else
     {
         printf("[error_%d_%d_%d_%d_%d_%d_%d]\n",a,b,c,d,e,f,g);
-        return 'e';
+        return 'e';  // 打印错误信息，看是哪个数码管识别不到
     }
 
-    // cout<<"MyDiscern:OK"<<endl;
+    // cout<<"MyDiscern:FXXKING OK"<<endl;
 }
 
 unsigned char          *g_pRgbBuffer;   // 处理后数据缓存区
+
 int main()
 {
 
@@ -178,7 +190,7 @@ int main()
     cout << CameraGetAeState(hCamera, &AEstate);
     cout << CameraSetAeState(hCamera, FALSE);
 
-    CameraSetExposureTime(hCamera, 4800);
+    CameraSetExposureTime(hCamera, 10000);  // 可能高曝光看的会比较好一点，因为他的数字比较少
     /*让SDK进入工作模式，开始接收来自相机发送的图像
     数据。如果当前相机是触发模式，则需要接收到
     触发帧以后才会更新图像*/
@@ -206,8 +218,8 @@ int main()
     Mat bin_img;
     Mat dst_img;
     Mat element = cv::getStructuringElement(MORPH_ELLIPSE, Size(3, 5));
-    Mat element_1 = cv::getStructuringElement(MORPH_RECT, Size(3, 3));
-
+    Mat element_1 = cv::getStructuringElement(MORPH_RECT, Size(1, 3));
+    Mat element_2 = cv::getStructuringElement(MORPH_ELLIPSE, Size(3, 3));
 
 #ifdef VIDEO
     VideoCapture capture(2);
@@ -246,7 +258,7 @@ int main()
         CameraImageProcess(hCamera, pbyBuffer, g_pRgbBuffer,&sFrameInfo);
         if (iplImage)
         {
-            cvReleaseImageHeader(&iplImage);  // 注意这个空...
+            cvReleaseImageHeader(&iplImage);  // 注意这个空...有地址符号的。
         }
         iplImage = cvCreateImageHeader(cvSize(sFrameInfo.iWidth,sFrameInfo.iHeight),IPL_DEPTH_8U,channel);
         cvSetData(iplImage,g_pRgbBuffer,sFrameInfo.iWidth*channel);//此处只是设置指针，无图像块数据拷贝，不需担心转换效率
@@ -256,12 +268,11 @@ int main()
     resize(temp_img, temp_img, Size(640, 480));  // 此代码各参数仅在640X480分辨率有效
     //dst_img.create(temp_img.dims, temp_img.cols, temp_img.type());  // 模板匹配才用的
     GaussianBlur(temp_img, temp_img, Size(3, 3), 0);
-
     cvtColor(temp_img, gray_img, COLOR_BGR2GRAY);
-    threshold(gray_img, bin_img, 30, 255, THRESH_BINARY);
+    threshold(gray_img, bin_img, 50, 255, THRESH_BINARY);
     Canny(bin_img, bin_img, 60, 200);
     morphologyEx(bin_img, bin_img, MORPH_CLOSE, element);
-    dilate(bin_img, bin_img, element);
+    dilate(bin_img, bin_img, element_1);
 
     vector<vector<Point>> contours;   
     vector<Rect> big_num;  // 筛选大矩形的容器
@@ -272,19 +283,21 @@ int main()
     findContours(bin_img, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, Point(0, 0));
     for(size_t i = 0; i < contours.size(); i++)  // 寻找最外层轮廓
     {
-        if(contours.size() <= 1) break;
-         Rect num_rect = boundingRect(contours[i]);
-         //cout << "area:" << num_rect.area() << endl;
+        if(contours.size() <= 2) break;
+         const Rect &num_rect = boundingRect(contours[i]);
+#ifdef DEBUG_CONTOURS
+        cout << "area:" << num_rect.area() << endl;
         rectangle(temp_img, num_rect, Scalar(0, 0, 255), 2);
         putText(temp_img, to_string(num_rect.area()), num_rect.tl(), FONT_HERSHEY_PLAIN, 1, Scalar(255, 255, 255));
-        bool big_area_condition = num_rect.area() > 4000 && num_rect.area() < 10000;
+#endif
+        bool big_area_condition = num_rect.area() > 3000 && num_rect.area() < 10000;
         bool digit_area_condition = num_rect.area() > 136 && num_rect.area() <= 755;
         bool the_slope = fabs(num_rect.size().width / num_rect.size().height) <= 1.3;
-        bool logic_slope = num_rect.size().width < num_rect.size().height;
 
-        if(big_area_condition && the_slope /*&& logic_slope*/)  // 利用面积大小和宽高比筛选
+        if(big_area_condition && the_slope)  // 利用面积大小和宽高比筛选
         {           
            big_num.push_back(num_rect);
+
         }
 #ifdef CONTOUR_DIGIT
         if(the_slope  && digit_area_condition)
@@ -293,6 +306,12 @@ int main()
         }
 #endif
     }
+
+
+    sort(digit_num.begin(), digit_num.end(),  //让数码管从左到右排序
+         [](Rect & a1,Rect & a2){
+             return a1.tl().x < a2.tl().x;}); // Lambda 用法
+
 
     for(size_t k = 0; k < big_num.size(); k++) /*遍历大数字*/
     {
@@ -311,19 +330,18 @@ int main()
     }
 
 
+
 #ifdef CONTOUR_DIGIT    
     for(size_t l = 0; l < digit_num.size(); l++) /*遍历数码管*/        
     {
-        Mat temp_roi = temp_img(digit_num[l]);
+        Mat temp_roi = temp_img(digit_num[l]);  // 装ROI
         cvtColor(temp_roi, temp_roi, COLOR_BGR2GRAY);
-        threshold(temp_roi, temp_roi, 50, 255, THRESH_BINARY);
-        dilate(temp_roi, temp_roi, element);
-        erode(temp_roi, temp_roi, element);
+        threshold(temp_roi, temp_roi, 60, 255, THRESH_BINARY);
+        //dilate(temp_roi, temp_roi, element_1);
+        //erode(temp_roi, temp_roi, element_1);
         imshow("fxxk", temp_roi);
-        if(TRUE_DIGIT(temp_roi)){  // 已证明此穿线法可以认出数码管，后期可以好好利用,但识别出来的数效果奇差
         rectangle(temp_img, digit_num[l], Scalar(255, 0, 0), 1);
-        cout << "num:" << myDiscern(temp_roi) << endl;
-        }
+        cout << "num:" << myDiscern(temp_roi) << endl;  /*解决1的问题基本可以了*/
     }
 #endif
 
@@ -342,12 +360,13 @@ int main()
 #endif
 
 
-        imshow("temp_img", temp_img);
-//        imshow("bin_img", bin_img);
-        CameraReleaseImageBuffer(hCamera, pbyBuffer);  // 这句别忘记了
+//        imshow("temp_img", temp_img);
+        imshow("bin_img", bin_img);
+        CameraReleaseImageBuffer(hCamera, pbyBuffer);  // 这句别忘记了,忘了后果很严重
         t = ((double)cv::getTickCount() - t) / cv::getTickFrequency();
         int fps = int(1.0 / t);
-        //cout << "FPS: " << fps<<endl;
+        putText(temp_img, to_string(fps), Point(50, 50), FONT_HERSHEY_SIMPLEX, 30, Scalar::all(255));
+        //cout << "FPS: " << fps<<endl;   /*帧率*/
         char c = waitKey(1);
         if( c == 27 )
            break;
