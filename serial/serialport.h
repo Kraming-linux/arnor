@@ -27,13 +27,13 @@
 using namespace std;
 using namespace cv;
 
-/** ------------------------------------------------------**
+/** ------------------------------------------------------**/
 
-/** 串口名字 **/
+
 #define PORT_NAME "/dev/ttyACM0"
 
 
-#define BUFF_LENGTH 16
+#define BUFF_LENGTH 22
 #define BUFF_TEMP_LENGTH 12
 #define REC_BUFF_LENGTH 5
 
@@ -62,7 +62,7 @@ enum ARMOR_COLOR{  // 装甲颜色枚举
 };
 
 
-enum MODEL_CASE{
+enum MODEL_CASE{   // 模式
     support_shooting_mode = 1,
     energu_mode = 2,
 };
@@ -76,19 +76,20 @@ class SerialPort
 public:
     //串口标志量
     static int fd;  // 串口文件句柄
-    static char g_buf[BUFF_LENGTH];  // 发送的最终数据
-    static char g_buf_temp[BUFF_TEMP_LENGTH];  // 缓存数据
-    static char g_rec_buf[REC_BUFF_LENGTH];   //  接收的数据
+    static char send_buf[BUFF_LENGTH];  // 发送的最终数据
+    static char send_buf_temp[BUFF_TEMP_LENGTH];  // 缓存数据
+    static char rec_buf[REC_BUFF_LENGTH];   //  接收的数据
 
 public:
     SerialPort();
     ~SerialPort();
 
 public:
-    static void serialSet();  /** 串口配置 **/
+
     static void sendData(int x,int y);  /** 发送函数  **/
     static void receiveData();   /** 接收函数 **/
     static uint8_t Check_CRC8(char *buf,uint16_t len);  /** CRC校验 **/
+    static char calcCRC(char *data, unsigned int len);
     static int databitProcessing(int bit);  /** 数据位处理 **/
 
 };
@@ -112,5 +113,7 @@ const unsigned char CRC8_TAB[256] =  /** CRC校验码 **/
     0xe9, 0xb7, 0x55, 0x0b, 0x88, 0xd6, 0x34, 0x6a, 0x2b, 0x75, 0x97, 0xc9, 0x4a, 0x14, 0xf6, 0xa8,
     0x74, 0x2a, 0xc8, 0x96, 0x15, 0x4b, 0xa9, 0xf7, 0xb6, 0xe8, 0x0a, 0x54, 0xd7, 0x89, 0x6b, 0x35,
 };
+
+
 
 #endif // SERIALPORT_H
