@@ -1,2 +1,5 @@
 # arnor
-to solve the robot master
+to solve the robomaster
+
+里面各种杂七杂八的
+
